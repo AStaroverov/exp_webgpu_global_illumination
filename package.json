@@ -6,7 +6,8 @@
     "packages/common",
     "packages/renderer",
     "packages/engine",
-    "packages/game"
+    "packages/game",
+    "packages/demo"
   ],
   "type": "module",
   "scripts": {

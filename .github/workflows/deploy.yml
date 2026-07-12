@@ -1,4 +1,5 @@
-# Build the `unknown` game package and deploy it to GitHub Pages
+# Build the unified `demo` package (all renderer scenes + the engine physics scene behind
+# one switcher) and deploy it to GitHub Pages.
 name: Deploy to Pages
 
 on:
@@ -30,18 +31,24 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Install dependencies
         run: npm ci
       - name: Build
-        run: npm run build --workspace=unknown
+        # Pages serves the site from /<repo>/ — vite needs it as the asset base.
+        run: npm run build --workspace=demo
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          # Enable Pages (source: GitHub Actions) on first run instead of failing.
+          enablement: true
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: packages/unknown/dist
+          path: packages/demo/dist
 
   deploy:
     needs: build
