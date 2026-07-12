@@ -3,9 +3,12 @@
 name: Deploy to Pages
 
 on:
-  # Runs on pushes targeting the default branch
+  # Runs on pushes targeting the default branch. NOTE: "platform" is here because the
+  # github-pages environment's branch policy was auto-created when it was the default
+  # branch and currently allows ONLY it — drop it once `main` is added to the allowed
+  # deployment branches (Settings → Environments → github-pages).
   push:
-    branches: ["main"]
+    branches: ["main", "platform"]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
