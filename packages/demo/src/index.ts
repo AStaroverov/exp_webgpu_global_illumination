@@ -4,7 +4,7 @@
 // renderer scenes don't pay for the Rapier WASM bundle.
 
 import type GUI from "lil-gui";
-import { SCENE_OPTIONS } from "../../renderer/src/demo/scenes/index.ts";
+import { SCENE_OPTIONS } from "./renderer/scenes/index.ts";
 
 const DEMO_OPTIONS = [...SCENE_OPTIONS, "physics"] as const;
 type DemoName = (typeof DEMO_OPTIONS)[number];
@@ -34,13 +34,13 @@ async function main(): Promise<void> {
   const hud = document.getElementById("hud")!;
   if (scene === "physics") {
     hud.innerHTML = "engine — Rapier 3D physics driving the renderer (2.5D SDF) · voxel-GI sun";
-    const { runEngineDemo } = await import("../../engine/src/runDemo.ts");
+    const { runEngineDemo } = await import("./engine/runDemo.ts");
     await runEngineDemo({ setupDemoGUI });
   } else {
     hud.innerHTML =
       "renderer3d — 2.5D true-3D-SDF · orthographic tilted top-down · raymarched, " +
       "real-depth sorted (reverse-Z) · voxel-GI lighting · drag to orbit, wheel to zoom, WASD to pan";
-    const { runRendererDemo } = await import("../../renderer/src/demo/run.ts");
+    const { runRendererDemo } = await import("./renderer/run.ts");
     await runRendererDemo({ scene, setupDemoGUI });
   }
 }

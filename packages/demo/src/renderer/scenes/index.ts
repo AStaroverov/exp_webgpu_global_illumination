@@ -1,4 +1,4 @@
-import type { RenderWorld } from "../../ECS/world.ts";
+import type { RenderWorld } from "../../../../renderer/src/ECS/world.ts";
 import type { DemoScene } from "./types.ts";
 import { createEmitterScene } from "./emitter.ts";
 import { createShowcaseScene } from "./showcase.ts";

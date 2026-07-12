@@ -1,8 +1,8 @@
 import type GUI from "lil-gui";
-import { getRenderComponents, type RenderWorld } from "../../ECS/world.ts";
-import { SunLight } from "../../ECS/Systems/SunLight.ts";
-import { setMatrixRotateZ, setMatrixTranslate } from "../../ECS/Components/Transform.ts";
-import { createCircle, createRectangle, createSphere } from "../../ECS/Entities/Shapes.ts";
+import { getRenderComponents, type RenderWorld } from "../../../../renderer/src/ECS/world.ts";
+import { SunLight } from "../../../../renderer/src/ECS/Systems/SunLight.ts";
+import { setMatrixRotateZ, setMatrixTranslate } from "../../../../renderer/src/ECS/Components/Transform.ts";
+import { createCircle, createRectangle, createSphere } from "../../../../renderer/src/ECS/Entities/Shapes.ts";
 import type { DemoScene } from "./types.ts";
 
 // "final" — static set + 4 dynamic objects, one per animated axis (position / angle / size /

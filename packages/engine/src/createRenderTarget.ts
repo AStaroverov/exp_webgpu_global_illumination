@@ -11,8 +11,9 @@ import { RenderDI } from "./DI/RenderDI.ts";
 import { EngineDI } from "./DI/EngineDI.ts";
 
 // Builds the GPU render target and the per-frame render closure. Mirrors
-// renderer/src/demo.ts's render path function-for-function (the §4 render
-// block), including the resize-rebuild of the frame textures + voxel.recreate.
+// the renderer demo harness's render path (demo/src/renderer/run.ts)
+// function-for-function (the §4 render block), including the resize-rebuild
+// of the frame textures + voxel.recreate.
 // Fills RenderDI and returns { renderFrame, destroy }.
 export async function createRenderTarget(
   world: EngineWorld,
@@ -51,7 +52,7 @@ export async function createRenderTarget(
   });
 
   // Standalone resize/camera update, run BEFORE prepare() so the camera uniforms
-  // uploaded each frame are current (mirrors demo.ts; createFrameTick has its own
+  // uploaded each frame are current (mirrors the renderer demo harness; createFrameTick has its own
   // internal resize system, which then no-ops).
   const resizeSystem = createResizeSystem(canvas, getPixelRatio);
 

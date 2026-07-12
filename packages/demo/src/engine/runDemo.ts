@@ -1,6 +1,6 @@
 // engine demo — Rapier 3D physics driving the renderer (2.5D SDF) renderer, exported as
-// runEngineDemo(). Entries (this package's demo.ts, the unified `demo` package) call it and
-// inject their scene switcher via setupDemoGUI.
+// runEngineDemo(). The entry (src/index.ts) calls it and injects its scene switcher via
+// setupDemoGUI.
 //
 // Gravity drops boxes and spheres onto a ground plane, lit by the VCT sun, viewed
 // by a tilted orthographic camera. Z-up world; gravity (0,0,-9.81). A lil-gui panel
@@ -9,12 +9,12 @@
 
 import GUI from "lil-gui";
 import { removeEntity } from "bitecs";
-import { createEngine } from "./createEngine.ts";
-import { getEngineComponents } from "./ECS/createEngineWorld.ts";
-import { createGround, createRigidBox, createRigidSphere } from "./ECS/Entities/RigidShapes.ts";
-import type { EngineWorld } from "./ECS/createEngineWorld.ts";
-import type { TColor } from "../../renderer/src/ECS/Components/Common.ts";
-import { SunLight } from "../../renderer/src/ECS/Systems/SunLight.ts";
+import { createEngine } from "../../../engine/src/createEngine.ts";
+import { getEngineComponents } from "../../../engine/src/ECS/createEngineWorld.ts";
+import { createGround, createRigidBox, createRigidSphere } from "../../../engine/src/ECS/Entities/RigidShapes.ts";
+import type { EngineWorld } from "../../../engine/src/ECS/createEngineWorld.ts";
+import type { TColor } from "../../../renderer/src/ECS/Components/Common.ts";
+import { SunLight } from "../../../renderer/src/ECS/Systems/SunLight.ts";
 import {
   cameraAzimuth,
   cameraElevation,
@@ -22,7 +22,7 @@ import {
   setCameraAzimuth,
   setCameraElevation,
   setCameraPosition,
-} from "../../renderer/src/ECS/Systems/ResizeSystem.ts";
+} from "../../../renderer/src/ECS/Systems/ResizeSystem.ts";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 

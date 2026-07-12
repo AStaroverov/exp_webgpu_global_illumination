@@ -45,9 +45,7 @@ exposure…) with live per-pass GPU timings.
 
 ```bash
 npm install
-npm run dev --workspace=demo      # unified demo page
-npm run dev --workspace=renderer  # renderer scenes only
-npm run dev --workspace=engine    # physics scene only
+npm run dev --workspace=demo      # unified demo page (all scenes)
 ```
 
 Deployment note: the physics scene needs `SharedArrayBuffer`, i.e. a

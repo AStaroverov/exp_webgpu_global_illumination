@@ -1,6 +1,6 @@
 import { mat4 } from "gl-matrix";
-import { getRenderComponents, type RenderWorld } from "../../ECS/world.ts";
-import { applyMatrixRotateZ } from "../../ECS/Components/Transform.ts";
+import { getRenderComponents, type RenderWorld } from "../../../../renderer/src/ECS/world.ts";
+import { applyMatrixRotateZ } from "../../../../renderer/src/ECS/Components/Transform.ts";
 import {
   createCircle,
   createParallelogram,
@@ -8,7 +8,7 @@ import {
   createSphere,
   createTrapezoid,
   createTriangle,
-} from "../../ECS/Entities/Shapes.ts";
+} from "../../../../renderer/src/ECS/Entities/Shapes.ts";
 import type { DemoScene } from "./types.ts";
 
 // "showcase" — at least one of every shape kind, plus a stacked platform and several lights.

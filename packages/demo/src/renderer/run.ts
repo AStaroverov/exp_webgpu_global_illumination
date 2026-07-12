@@ -1,10 +1,9 @@
 // renderer3d 2.5D true-3D-SDF demo — the harness/wiring only, exported as runRendererDemo().
 // The scenes themselves (world content + per-scene animation + per-scene GUI) live in
-// src/demo/scenes/* behind the createScene registry; this file owns the engine wiring
+// ./scenes/* behind the createScene registry; this file owns the engine wiring
 // (createWorld → initWebGPU → frame textures → draw system → resize/transform systems →
-// voxel GI → present), the shared voxel-GI GUI, and the frame loop. Entries (this package's
-// index.ts, the unified `demo` package) pick the scene and inject their own scene switcher
-// via setupDemoGUI.
+// voxel GI → present), the shared voxel-GI GUI, and the frame loop. The entry (src/index.ts)
+// picks the scene and injects its scene switcher via setupDemoGUI.
 //
 // DEPTH CONVENTION — REVERSE-Z (NEAR=1 .. FAR=0): the draw pipeline compares
 // depth "greater-equal" against a 0 clear; ResizeSystem.viewProjMatrix and the
@@ -12,23 +11,23 @@
 
 import GUI from "lil-gui";
 import Stats from "stats-gl";
-import { initWebGPU } from "../gpu.ts";
+import { initWebGPU } from "../../../renderer/src/gpu.ts";
 import {
   getGpuTimings,
   gpuTimerBeginFrame,
   gpuTimerPoll,
   gpuTimerResolve,
   initGpuTimer,
-} from "../gpuTimer.ts";
-import { createWorld } from "../ECS/world.ts";
-import { createFrameTextures, createFrameTick } from "../WGSL/createFrame.ts";
-import { createPresent } from "../WGSL/createPresent.ts";
-import { createDrawShapeSystem } from "../ECS/Systems/SDFSystem/createDrawShapeSystem.ts";
-import { createVoxelSystem } from "../ECS/Systems/Lighting/createVoxelSystem.ts";
-import { GI_QUALITY_PRESETS, type GIQuality } from "../ECS/Systems/Lighting/core/voxelConfig.ts";
-import { createLightEmitterSystem } from "../ECS/Systems/Lighting/lights/createLightEmitterSystem.ts";
-import { SunLight } from "../ECS/Systems/SunLight.ts";
-import { createTransformSystem } from "../ECS/Systems/TransformSystem.ts";
+} from "../../../renderer/src/gpuTimer.ts";
+import { createWorld } from "../../../renderer/src/ECS/world.ts";
+import { createFrameTextures, createFrameTick } from "../../../renderer/src/WGSL/createFrame.ts";
+import { createPresent } from "../../../renderer/src/WGSL/createPresent.ts";
+import { createDrawShapeSystem } from "../../../renderer/src/ECS/Systems/SDFSystem/createDrawShapeSystem.ts";
+import { createVoxelSystem } from "../../../renderer/src/ECS/Systems/Lighting/createVoxelSystem.ts";
+import { GI_QUALITY_PRESETS, type GIQuality } from "../../../renderer/src/ECS/Systems/Lighting/core/voxelConfig.ts";
+import { createLightEmitterSystem } from "../../../renderer/src/ECS/Systems/Lighting/lights/createLightEmitterSystem.ts";
+import { SunLight } from "../../../renderer/src/ECS/Systems/SunLight.ts";
+import { createTransformSystem } from "../../../renderer/src/ECS/Systems/TransformSystem.ts";
 import {
   cameraAzimuth,
   cameraElevation,
@@ -37,7 +36,7 @@ import {
   createResizeSystem,
   setCameraElevation,
   setCameraPosition,
-} from "../ECS/Systems/ResizeSystem.ts";
+} from "../../../renderer/src/ECS/Systems/ResizeSystem.ts";
 import { createScene, type SceneName } from "./scenes/index.ts";
 import { perfToggles } from "./scenes/perfToggles.ts";
 
