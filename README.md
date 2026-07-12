@@ -9,12 +9,14 @@ no Three.js, no game frameworks, hand-written WGSL end to end.
 
 ## What's inside
 
-- **`packages/renderer`** — 2.5D true-3D-SDF renderer: raymarched SDF shapes into a
-  G-buffer (reverse-Z, orthographic tilted top-down), lit by **voxel cone tracing
-  GI**: scene voxelization → radiance pyramid (+ anisotropic mips against light
-  leaks) → screen-space probes with temporal accumulation → cone resolve →
-  composite. Emissive shapes are real light sources; the sun casts soft
-  distance-field shadows with physically growing penumbra.
+- **`packages/renderer`** — an SDF renderer built for **top-down camera games**: the
+  scene is authored in 2D-ish layers but the shapes are true 3D SDFs, raymarched
+  into a G-buffer under a tilted orthographic top-down camera (reverse-Z) and lit
+  by **voxel cone tracing GI**: scene voxelization → radiance pyramid
+  (+ anisotropic mips against light leaks) → screen-space probes with temporal
+  accumulation → cone resolve → composite. Emissive shapes are real light
+  sources; the sun casts soft distance-field shadows with physically growing
+  penumbra.
 - **`packages/engine`** — ECS (`bitecs`) + **Rapier 3D physics running in a Web
   Worker over SharedArrayBuffer**, driving the renderer's transforms. Z-up world,
   fixed-step worker sim, lock-free SAB channels for ops/poses/hits.
