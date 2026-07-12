@@ -1,54 +1,59 @@
-# exp_webgpu_tf
+# exp_webgpu_global_illumination
 
-**▶ Live demo: https://astaroverov.github.io/exp_webgpu_tf/**
-_(needs a WebGPU browser — Chrome/Edge desktop. Click once to enable sound.)_
+**▶ Live demos: https://astaroverov.github.io/exp_webgpu_global_illumination/**
+_(needs a WebGPU browser — Chrome/Edge desktop)_
 
-![gameplay demo](game.gif)
+A from-scratch **WebGPU renderer with real-time voxel global illumination**, plus
+a small ECS engine that drives it with 3D physics. A personal hobby experiment —
+no Three.js, no game frameworks, hand-written WGSL end to end.
 
-A from-scratch browser game where you drive a tank against an opponent that was
-**trained with reinforcement learning** — and everything (physics, GPU
-rendering, and the neural-net training itself) runs **client-side in a single
-tab, with no backend**. A personal hobby project to see how far the browser can
-actually be pushed.
+## What's inside
 
-Three things built by hand, no engines or game frameworks:
+- **`packages/renderer`** — 2.5D true-3D-SDF renderer: raymarched SDF shapes into a
+  G-buffer (reverse-Z, orthographic tilted top-down), lit by **voxel cone tracing
+  GI**: scene voxelization → radiance pyramid (+ anisotropic mips against light
+  leaks) → screen-space probes with temporal accumulation → cone resolve →
+  composite. Emissive shapes are real light sources; the sun casts soft
+  distance-field shadows with physically growing penumbra.
+- **`packages/engine`** — ECS (`bitecs`) + **Rapier 3D physics running in a Web
+  Worker over SharedArrayBuffer**, driving the renderer's transforms. Z-up world,
+  fixed-step worker sim, lock-free SAB channels for ops/poses/hits.
+- **`packages/demo`** — the unified demo page deployed to GitHub Pages: every
+  renderer scene + the physics scene behind one GUI switcher (`?scene=` is
+  linkable).
+- **`packages/common`** — shared SAB utilities. **`packages/game`** — WIP game
+  prototype scenes on top of the engine.
 
-- **My own ECS game engine** — ~50 components / ~40 systems on `bitecs`, with a
-  2D Rapier physics backend. Strictly data-oriented: behavior is a _query over
-  components_, never a branch inside a system. Runs headless and deterministic
-  so it can be stepped as fast as possible for training.
-- **My own WebGPU renderer** — hand-written WGSL + SDF shape passes and a
-  screen-space **Radiance Cascades** global-illumination lighting pass. No
-  Three.js/pixi.
-- **From-scratch PPO** (Proximal Policy Optimization) on TensorFlow.js that
-  actually trains the agent you fight.
+## The demos
 
-## The game
+| Scene | What it shows |
+| --- | --- |
+| `showcase` | one of every SDF shape kind + several emitters |
+| `emitter` | a movable/resizable light emitter vs a box occluder |
+| `final` | the animated "final" scene |
+| `swarm` | many small lights (round-robin subsampling + clustered light culling) |
+| `perf` / `perf2` | GPU-cost harnesses with per-pass toggles and timestamp timings |
+| `physics` | Rapier 3D gravity sandbox — spawn boxes/spheres (optionally emissive) onto a plane |
 
-A top-down desert combat prototype. Vehicles are composed from parts
-bolted onto a compound Rapier body (hull, turret, wheels, tracks), so they take
-**localized damage and shed debris** instead of being one rigid blob. Multiple
-weapon families share a single damage pipeline: ballistic guns, rockets, an EMP
-gun, and continuous **flame / frost streams** with damage-over-time and slow
-effects — plus shields, repair, scoring, and destructible terrain.
+Controls: drag to orbit, wheel to zoom, WASD/arrows to pan. The GUI exposes the
+full GI configuration (voxel size, cone/probe budgets, temporal hysteresis, sun,
+exposure…) with live per-pass GPU timings.
 
-## The training
+## Running locally
 
-A **distributed actor/learner RL pipeline running entirely across Web Workers**:
-actors run the headless sim + inference on the WASM TF backend, learners train
-on the WebGPU backend, and the main tab shows a live visualizer + metrics
-dashboard. It uses action masking, an opponent population (self-play + frozen
-past selves + scripted baselines), and a curriculum. **The same headless engine
-serves both** the trainer and the playable game — the opponent in the demo is
-one of these trained networks, run through the exact training inference path.
+```bash
+npm install
+npm run dev --workspace=demo      # unified demo page
+npm run dev --workspace=renderer  # renderer scenes only
+npm run dev --workspace=engine    # physics scene only
+```
 
-## Tech stack
-
-TypeScript · Web Workers · WebGPU + WGSL (custom renderer) · `bitecs` (ECS) ·
-`@dimforge/rapier2d` (physics) · TensorFlow.js (`webgpu` + `wasm`) · Web Audio.
+Deployment note: the physics scene needs `SharedArrayBuffer`, i.e. a
+cross-origin-isolated page. The dev/preview servers send real COOP/COEP headers;
+on GitHub Pages (which can't) `coi-serviceworker` emulates them client-side.
+Deploys run from `.github/workflows/deploy.yml` on pushes to `main`.
 
 ## Status
 
-Active personal experiment — APIs, package names, and the game itself change
-freely as I explore. Shared as a record of what I'm tinkering with, not as a
-product.
+Active personal experiment — APIs, package names, and the scenes change freely
+as I explore. Shared as a record of what I'm tinkering with, not as a product.
