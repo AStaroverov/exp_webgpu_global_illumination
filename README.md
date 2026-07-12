@@ -1,5 +1,7 @@
 # exp_webgpu_global_illumination
 
+<img width="1414" height="860" alt="Screenshot 2026-07-12 at 11 27 59" src="https://github.com/user-attachments/assets/9399534e-3f59-4ac8-809c-56dbcc5e7260" />
+
 **▶ Live demos: https://astaroverov.github.io/exp_webgpu_global_illumination/**
 _(needs a WebGPU browser — Chrome/Edge desktop)_
 
