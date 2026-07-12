@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>viewer — entity viewer</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0b0d12;
+        overflow: hidden;
+        font-family: ui-monospace, monospace;
+        color: #9aa4b2;
+      }
+      #app {
+        display: grid;
+        grid-template-columns: 220px 1fr 240px;
+        width: 100vw;
+        height: 100vh;
+      }
+      .panel {
+        background: #11141b;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        font-size: 12px;
+        overflow: auto;
+      }
+      #panel {
+        border-right: 1px solid #1c212c;
+      }
+      #anim {
+        border-left: 1px solid #1c212c;
+      }
+      #anim.disabled {
+        opacity: 0.4;
+        pointer-events: none;
+      }
+      .panel label {
+        display: block;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #5c6675;
+      }
+      .panel select,
+      .panel button,
+      .panel input[type="range"],
+      .panel input[type="text"],
+      .panel input[type="number"] {
+        width: 100%;
+        background: #1a1f29;
+        color: #cdd5e0;
+        border: 1px solid #2a3140;
+        border-radius: 4px;
+        padding: 6px 8px;
+        font: inherit;
+        cursor: pointer;
+      }
+      .inspector-row {
+        display: grid;
+        grid-template-columns: 14px 1fr 1fr 1fr;
+        gap: 4px;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      .inspector-row > span {
+        color: #5c6675;
+      }
+      .inspector-row input {
+        width: 100%;
+        min-width: 0;
+        background: #1a1f29;
+        color: #cdd5e0;
+        border: 1px solid #2a3140;
+        border-radius: 4px;
+        padding: 4px 5px;
+        font: inherit;
+      }
+      #inspector.disabled {
+        opacity: 0.4;
+        pointer-events: none;
+      }
+      .row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .row > * {
+        flex: 1;
+        min-width: 0;
+      }
+      .row > button {
+        flex: 0 0 auto;
+        width: auto;
+      }
+      #keys > div {
+        display: grid;
+        grid-template-columns: 1fr 1fr 18px;
+        gap: 4px;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      #keys > div > span {
+        color: #5c6675;
+      }
+      #keys input {
+        width: 100%;
+        min-width: 0;
+      }
+      #keys .rm {
+        cursor: pointer;
+        color: #7c8696;
+        text-align: center;
+      }
+      #tree,
+      #components {
+        font-size: 12px;
+        line-height: 1.5;
+        color: #cdd5e0;
+        overflow: auto;
+      }
+      #tree > div {
+        white-space: nowrap;
+        cursor: pointer;
+      }
+      #tree > div.selected {
+        background: #1f2a3a;
+        color: #e7edf5;
+      }
+      #components > div {
+        white-space: nowrap;
+      }
+      #viewport {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+      }
+      #c {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="panel" class="panel">
+        <div>
+          <label for="entity-select">Entity</label>
+          <select id="entity-select"></select>
+        </div>
+        <div>
+          <label for="animation-select">Animation</label>
+          <select id="animation-select"></select>
+        </div>
+        <div>
+          <label for="scale-input">Scale</label>
+          <input type="range" id="scale-input" min="0.25" max="3" step="0.05" />
+        </div>
+        <div>
+          <label for="colliders-toggle">Colliders</label>
+          <input type="checkbox" id="colliders-toggle" checked />
+        </div>
+        <button id="regen">Regenerate</button>
+        <div>
+          <label>Pose (selected part)</label>
+          <div id="inspector" class="disabled">
+            <div class="inspector-row">
+              <span>T</span>
+              <input type="number" id="pose-tx" step="0.05" />
+              <input type="number" id="pose-ty" step="0.05" />
+              <input type="number" id="pose-tz" step="0.05" />
+            </div>
+            <div class="inspector-row">
+              <span>R°</span>
+              <input type="number" id="pose-rx" step="1" />
+              <input type="number" id="pose-ry" step="1" />
+              <input type="number" id="pose-rz" step="1" />
+            </div>
+          </div>
+        </div>
+        <div>
+          <label>Hierarchy</label>
+          <div id="tree"></div>
+        </div>
+        <div>
+          <label>Components</label>
+          <div id="components"></div>
+        </div>
+      </div>
+      <div id="viewport"><canvas id="c"></canvas></div>
+      <div id="anim" class="panel disabled">
+        <label>Animation pipeline</label>
+        <div>
+          <label for="clip-name">Clip name</label>
+          <input type="text" id="clip-name" value="clip" />
+        </div>
+        <div>
+          <label for="clip-duration">Duration (s)</label>
+          <input type="number" id="clip-duration" min="0.1" step="0.1" value="2" />
+        </div>
+        <button id="snapshot">Snapshot pose</button>
+        <div>
+          <label>Records (key · % time)</label>
+          <div id="keys"></div>
+        </div>
+        <button id="log-clip">Log clip to console</button>
+        <div id="anim-hint" style="color: #5c6675; line-height: 1.5"></div>
+      </div>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

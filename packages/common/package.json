@@ -1,0 +1,13 @@
+{
+  "name": "common",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "bitecs": "^0.4.0",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1"
+  }
+}

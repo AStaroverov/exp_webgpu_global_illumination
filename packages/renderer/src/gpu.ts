@@ -1,0 +1,43 @@
+export async function initWebGPU(
+  canvas: HTMLCanvasElement,
+): Promise<{ device: GPUDevice; context: GPUCanvasContext }> {
+  const adapter = await navigator.gpu.requestAdapter();
+  if (adapter === null) throw new Error("No adapter found");
+
+  // The surfel gather binds 10 storage buffers in one compute stage (posr/norw +
+  // 7 scene-instance buffers + radiance cache), above the default 8. Request the
+  // adapter's max (commonly 10) so it's allowed; clamps to whatever the adapter has.
+  // The anisotropic-voxel base/volume passes each bind 6 storage textures in one compute
+  // stage, above the default 4 → also request the adapter's max (commonly 8).
+  const device = await adapter.requestDevice({
+    // Per-pass GPU profiling (see gpuTimer.ts) — optional feature, requested only when present so
+    // devices without it still initialize (the timer then stays inert).
+    requiredFeatures: adapter.features.has("timestamp-query")
+      ? ["timestamp-query" as GPUFeatureName]
+      : [],
+    requiredLimits: {
+      maxStorageBuffersPerShaderStage: adapter.limits.maxStorageBuffersPerShaderStage,
+      maxStorageTexturesPerShaderStage: adapter.limits.maxStorageTexturesPerShaderStage,
+      // The cone pass binds 16 sampled textures (depth + normal + voxelRadiance + 6 aniso + 3 world
+      // SH + 3 screen-probe SH + 1 screen-probe pix) = the default cap of 16. Request the adapter's
+      // max so there is headroom and the A/B screen-probe fill bindings are never rejected.
+      maxSampledTexturesPerShaderStage: adapter.limits.maxSampledTexturesPerShaderStage,
+    },
+  });
+  const context = canvas.getContext("webgpu") as GPUCanvasContext;
+
+  canvas.width = canvas.clientWidth * window.devicePixelRatio;
+  canvas.height = canvas.clientHeight * window.devicePixelRatio;
+  const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+
+  context.configure({
+    device,
+    format: presentationFormat,
+    alphaMode: "premultiplied",
+  });
+
+  return {
+    device,
+    context,
+  };
+}

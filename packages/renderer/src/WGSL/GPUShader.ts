@@ -1,0 +1,291 @@
+import { ShaderMeta } from "./ShaderMeta.ts";
+import { GPUVariable } from "../WebGPU/GPUVariable.ts";
+
+export class GPUShader<M extends ShaderMeta<any, any>> {
+  uniforms = {} as Record<keyof M["uniforms"], GPUVariable>;
+  attributes = {} as Record<keyof M["attributes"], GPUVariable>;
+
+  private shaderModule?: GPUShaderModule;
+  private pipelineLayout?: GPUPipelineLayout;
+  private mapRenderPipeline: Map<string, GPURenderPipeline> = new Map();
+  private mapComputePipeline: Map<string, GPUComputePipeline> = new Map();
+  private mapBindGroup: Map<string, GPUBindGroup> = new Map();
+  private mapGPUBindGroupLayout: Map<number, GPUBindGroupLayout> = new Map();
+
+  constructor(public shaderMeta: M) {
+    for (const key in shaderMeta.uniforms) {
+      this.uniforms[key as keyof M["uniforms"]] = new GPUVariable(shaderMeta.uniforms[key]);
+    }
+
+    for (const key in shaderMeta.attributes) {
+      this.attributes[key as keyof M["attributes"]] = new GPUVariable(shaderMeta.attributes[key]);
+    }
+  }
+
+  getShaderModule(device: GPUDevice) {
+    return (
+      this.shaderModule ??
+      (this.shaderModule = device.createShaderModule({
+        code: this.shaderMeta.shader,
+      }))
+    );
+  }
+
+  getRenderPipeline(
+    device: GPUDevice,
+    vertexName: string,
+    fragmentName: string,
+    options?: {
+      withDepth?: boolean;
+      /** Depth compare for the depthStencil block. Defaults to the reverse-Z
+       * "greater-equal" so existing call sites are unchanged; the sun-shadow
+       * pipeline passes "less-equal" (standard [0,1] orthoZO depth). */
+      depthCompare?: GPUCompareFunction;
+      shaderModule?: GPUShaderModule;
+      targetFormat?: GPUTextureFormat;
+      withBlending?: boolean;
+      blend?: "alpha" | "additive";
+      targets?: { format: GPUTextureFormat; blend?: "alpha" | "additive" | "none" }[];
+      /** Face culling for the primitive block. Default "none" (previous behavior). */
+      cullMode?: GPUCullMode;
+      autoLayout?: boolean;
+      /** For autoLayout pipelines: specify which uniforms to include in each bind group */
+      bindGroups?: Record<number, (keyof M["uniforms"])[]>;
+    },
+  ): GPURenderPipeline {
+    const withDepth = options?.withDepth ?? false;
+    const depthCompare = options?.depthCompare ?? "greater-equal";
+    const targetFormat = options?.targetFormat ?? navigator.gpu.getPreferredCanvasFormat();
+    const withBlending = options?.withBlending ?? true;
+    const blend = options?.blend ?? "alpha";
+    const autoLayout = options?.autoLayout ?? false;
+    const bindGroups = options?.bindGroups;
+    const cullMode = options?.cullMode ?? "none";
+
+    const targets: { format: GPUTextureFormat; blend: "alpha" | "additive" | "none" }[] =
+      options?.targets?.map((t) => ({ format: t.format, blend: t.blend ?? "alpha" })) ?? [
+        { format: targetFormat, blend: withBlending ? blend : "none" },
+      ];
+
+    const makeBlend = (mode: "alpha" | "additive" | "none"): GPUBlendState | undefined => {
+      if (mode === "none") return undefined;
+      if (mode === "additive")
+        return {
+          color: {
+            srcFactor: "one",
+            dstFactor: "one",
+            operation: "add",
+          },
+          alpha: {
+            srcFactor: "one",
+            dstFactor: "one",
+            operation: "add",
+          },
+        };
+      return {
+        color: {
+          srcFactor: "src-alpha",
+          dstFactor: "one-minus-src-alpha",
+          operation: "add",
+        },
+        alpha: {
+          srcFactor: "one",
+          dstFactor: "one-minus-src-alpha",
+          operation: "add",
+        },
+      };
+    };
+
+    const pipelineKey = `${vertexName}-${fragmentName}`;
+    const targetsKey = targets.map((t) => `${t.format}:${t.blend}`).join(",");
+    const key = `${pipelineKey}-${withDepth}-${depthCompare}-${targetsKey}-${autoLayout}-${cullMode}`;
+    const shaderModule = options?.shaderModule ?? this.getShaderModule(device);
+
+    if (!this.mapRenderPipeline.has(key)) {
+      const pipeline = device.createRenderPipeline({
+        layout: autoLayout ? "auto" : this.getGPUPipelineLayout(device),
+        primitive: {
+          topology: "triangle-list",
+          cullMode,
+        },
+        vertex: {
+          module: shaderModule,
+          entryPoint: vertexName,
+        },
+        fragment: {
+          module: shaderModule,
+          entryPoint: fragmentName,
+          targets: targets.map((t) => ({
+            format: t.format,
+            blend: makeBlend(t.blend),
+          })),
+        },
+        depthStencil: withDepth
+          ? {
+              format: "depth32float",
+              depthCompare,
+              depthWriteEnabled: true,
+            }
+          : undefined,
+      });
+      this.mapRenderPipeline.set(key, pipeline);
+
+      // Create and cache bind groups for autoLayout pipelines
+      if (autoLayout && bindGroups) {
+        for (const [groupStr, uniformKeys] of Object.entries(bindGroups)) {
+          const group = Number(groupStr);
+          const bindGroupKey = `${pipelineKey}-${group}`;
+          const bindGroup = device.createBindGroup({
+            layout: pipeline.getBindGroupLayout(group),
+            entries: uniformKeys.map((uniformKey) =>
+              this.uniforms[uniformKey].getBindGroupEntry(device),
+            ),
+          });
+          this.mapBindGroup.set(bindGroupKey, bindGroup);
+        }
+      }
+    }
+
+    return this.mapRenderPipeline.get(key)!;
+  }
+
+  /**
+   * Build (and cache) a compute pipeline for `entryPoint`. Mirrors getRenderPipeline:
+   * by default uses the reflected explicit pipeline layout (group-0 uniforms/textures,
+   * group-1+ storage). Compute-stage bindings require the shader's VariableMeta to
+   * declare `visibility: GPUShaderStage.COMPUTE` (else the layout excludes the compute
+   * stage). With autoLayout + bindGroups, caches bind groups keyed `${entryPoint}-${group}`.
+   */
+  getComputePipeline(
+    device: GPUDevice,
+    entryPoint: string,
+    options?: {
+      autoLayout?: boolean;
+      bindGroups?: Record<number, (keyof M["uniforms"])[]>;
+      shaderModule?: GPUShaderModule;
+    },
+  ): GPUComputePipeline {
+    const autoLayout = options?.autoLayout ?? false;
+    const key = `${entryPoint}-${autoLayout}`;
+    const shaderModule = options?.shaderModule ?? this.getShaderModule(device);
+
+    if (!this.mapComputePipeline.has(key)) {
+      const pipeline = device.createComputePipeline({
+        layout: autoLayout ? "auto" : this.getGPUPipelineLayout(device),
+        compute: { module: shaderModule, entryPoint },
+      });
+      this.mapComputePipeline.set(key, pipeline);
+
+      if (autoLayout && options?.bindGroups) {
+        for (const [groupStr, uniformKeys] of Object.entries(options.bindGroups)) {
+          const group = Number(groupStr);
+          const bindGroup = device.createBindGroup({
+            layout: pipeline.getBindGroupLayout(group),
+            entries: uniformKeys.map((uniformKey) =>
+              this.uniforms[uniformKey].getBindGroupEntry(device),
+            ),
+          });
+          this.mapBindGroup.set(`${entryPoint}-${group}`, bindGroup);
+        }
+      }
+    }
+
+    return this.mapComputePipeline.get(key)!;
+  }
+
+  /**
+   * Gets a cached bind group.
+   * @param group - bind group index
+   * @param vertexName - for autoLayout pipelines, specify entry point names to get the correct bind group
+   * @param fragmentName - for autoLayout pipelines, specify entry point names to get the correct bind group
+   */
+  getBindGroup(
+    device: GPUDevice,
+    group: number,
+    vertexName?: string,
+    fragmentName?: string,
+  ): GPUBindGroup {
+    const key =
+      vertexName && fragmentName ? `${vertexName}-${fragmentName}-${group}` : `default-${group}`;
+
+    if (!this.mapBindGroup.has(key)) {
+      // Only create default bind groups (non-autoLayout)
+      if (vertexName && fragmentName) {
+        throw new Error(
+          `Bind group for ${key} not found. Make sure to pass bindGroups option to getRenderPipeline.`,
+        );
+      }
+
+      const bindGroup = device.createBindGroup({
+        layout: this.createBindGroupLayout(device, group),
+        entries: Object.entries(this.uniforms)
+          .filter(([uniformKey]) => this.shaderMeta.uniforms[uniformKey].group === group)
+          .map(([_, value]) => value.getBindGroupEntry(device)),
+      });
+
+      this.mapBindGroup.set(key, bindGroup);
+    }
+
+    return this.mapBindGroup.get(key)!;
+  }
+
+  createBindGroupLayout(device: GPUDevice, group: number): GPUBindGroupLayout {
+    if (!this.mapGPUBindGroupLayout.has(group)) {
+      const bindGroupLayout = device.createBindGroupLayout({
+        entries: Object.entries(this.uniforms)
+          .filter(([key]) => this.shaderMeta.uniforms[key].group === group)
+          .map(([_, value]) => value.getBindGroupLayoutEntry()),
+      });
+
+      this.mapGPUBindGroupLayout.set(group, bindGroupLayout);
+    }
+
+    return this.mapGPUBindGroupLayout.get(group)!;
+  }
+
+  getGPUPipelineLayout(device: GPUDevice, groups?: number[]): GPUPipelineLayout {
+    if (this.pipelineLayout) {
+      return this.pipelineLayout;
+    }
+
+    // bindGroupLayouts is POSITIONAL: array index i must be the layout for @group(i). When
+    // a shader uses non-contiguous groups (e.g. a compute pass with group-0 uniforms/texture
+    // + a group-2 StorageTexture but nothing in group 1), the gap MUST be filled with an
+    // empty layout — otherwise @group(2) maps to array index 1 and the pipeline has no
+    // layout for index 2 ("doesn't have a BindGroupLayout for this index"). A group with no
+    // variables yields an empty (but valid) bind group layout.
+    let indices: number[];
+    if (groups) {
+      indices = groups;
+    } else {
+      const used = Object.values(this.shaderMeta.uniforms).reduce(
+        (acc, u) => acc.add(u.group),
+        new Set<number>(),
+      );
+      const max = Math.max(...used);
+      indices = Array.from({ length: max + 1 }, (_, i) => i);
+    }
+
+    return (this.pipelineLayout = device.createPipelineLayout({
+      bindGroupLayouts: indices.map((group) => this.createBindGroupLayout(device, group)),
+    }));
+  }
+
+  destroy() {
+    for (const key in this.uniforms) {
+      this.uniforms[key].destroy();
+    }
+
+    for (const key in this.attributes) {
+      this.attributes[key].destroy();
+    }
+
+    this.mapBindGroup.clear();
+    this.mapRenderPipeline.clear();
+    this.mapComputePipeline.clear();
+    this.mapGPUBindGroupLayout.clear();
+
+    this.uniforms = null!;
+    this.attributes = null!;
+  }
+}

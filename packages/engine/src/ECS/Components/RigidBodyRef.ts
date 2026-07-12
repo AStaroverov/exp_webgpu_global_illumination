@@ -1,0 +1,44 @@
+import { addComponent, World } from "bitecs";
+import { delegate } from "../../../../common/src/delegate.ts";
+import { defineComponent } from "../../../../common/src/component.ts";
+
+// Stores the Rapier body handle (pid) per entity, and maintains the reverse
+// pid→eid map for collision-event resolution. Handle 0 is the reserved
+// empty-memory sentinel (see initPhysicalWorld.reserveHandleZero).
+//
+// NOT a SHARED bridge column (plan §3.2 audit): the pid and the pid→eid Map are
+// only ever read where Rapier runs. At Step 2 that is inline on main; at Step 3
+// it moves wholesale into the worker. The renderer addresses entities by eid, not
+// pid, and despawn is keyed by eid — so there is no cross-thread reader of pid.
+// Therefore `id` and this Map stay thread-PRIVATE (each thread keeps its own).
+const mapPhysicalIdToEntityId = new Map<number, number>();
+
+export const createRigidBodyRefComponent = defineComponent((RigidBodyRef) => {
+  const id = new Float64Array(delegate.defaultSize);
+  return {
+    id,
+    addComponent(world: World, eid: number, pid: number) {
+      addComponent(world, eid, RigidBodyRef);
+      id[eid] = pid;
+      mapPhysicalIdToEntityId.set(pid, eid);
+    },
+    clear(eid: number) {
+      const pid = id[eid];
+      if (pid !== 0) {
+        id[eid] = 0;
+        mapPhysicalIdToEntityId.delete(pid);
+      }
+    },
+    dispose() {
+      mapPhysicalIdToEntityId.clear();
+    },
+  };
+});
+
+export function getEntityIdByPhysicalId(physicalId: number): number {
+  const eid = mapPhysicalIdToEntityId.get(physicalId);
+  if (eid === undefined) {
+    throw new Error(`Entity with physicalId ${physicalId} not found`);
+  }
+  return eid;
+}

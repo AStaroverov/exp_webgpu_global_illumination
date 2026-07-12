@@ -1,0 +1,82 @@
+import { mat4 } from "gl-matrix";
+import {
+  getEngineComponents,
+  type EngineWorld,
+} from "../../../engine/src/ECS/createEngineWorld.js";
+import { clipLayer, combineAnimations, proceduralLayer } from "../anim/layer.js";
+import { sampleKeys, type Key } from "../anim/curve.js";
+import { SWORD_SWING } from "../anim/presets/index.js";
+import type { EntityInstance, EntityOptions } from "./registry.js";
+import type { UnitInstance } from "./unit.js";
+
+export type SwordsmanParts = {
+  unit: (world: EngineWorld, options: EntityOptions) => UnitInstance;
+  sword: (world: EngineWorld, options: EntityOptions) => EntityInstance;
+};
+
+const DEG = Math.PI / 180;
+const SWORD_REL = 1.5;
+
+// Lunge stance: arm extended forward, blade horizontal (a thrust); the body steps forward.
+const LUNGE_HAND: [number, number, number] = [0.9, 0.6, 1.0];
+const LUNGE_ROT_X = -90 * DEG;
+const LUNGE_REACH = 0.7;
+const LUNGE_BODY = 0.9;
+const LUNGE_CYCLE = 1.4;
+// reach < 0 cocks the arm back behind the body (wind-up); reach > 0 extends it forward (thrust).
+const LUNGE_KEYS: Key[] = [
+  { at: 0.0, v: 0 },
+  { at: 0.5, v: -1 },
+  { at: 0.62, v: 1 },
+  { at: 1.0, v: 0 },
+];
+
+// A swordsman = a unit holding a weapon in its right hand (the unit's exposed `hand`). The weapon
+// is parented to the hand, so it follows the arm in every animation. `sword_slice` plays an authored
+// clip (anim/presets) that keys the arm; `lunge` is a procedural stance whose weight eases in while
+// active and out otherwise, so the rest ↔ lunge transition blends smoothly.
+export function buildSwordsman(
+  world: EngineWorld,
+  { scale, parts }: EntityOptions & { parts: SwordsmanParts },
+): EntityInstance {
+  const { Children, LocalTransform } = getEngineComponents(world);
+
+  const unit = parts.unit(world, { scale });
+  const sword = parts.sword(world, { scale: SWORD_REL });
+  Children.addChild(unit.bones.armR, sword.root);
+
+  const bones = { ...prefix("unit/", unit.bones), ...prefix("sword/", sword.bones) };
+
+  const rootMatrix = LocalTransform.matrix.getBatch(unit.root);
+  const armMatrix = LocalTransform.matrix.getBatch(unit.bones.armR);
+  const restArmX = armMatrix[12];
+  const restArmZ = armMatrix[14];
+
+  const sword_lunge = proceduralLayer(LUNGE_CYCLE, (phase, weight) => {
+    const reach = sampleKeys(LUNGE_KEYS, phase);
+    let px = restArmX;
+    let py = 0;
+    let pz = restArmZ;
+    let rx = 0;
+    px += (LUNGE_HAND[0] - px) * weight;
+    py += (LUNGE_HAND[1] + reach * LUNGE_REACH - py) * weight;
+    pz += (LUNGE_HAND[2] - pz) * weight;
+    rx += (LUNGE_ROT_X - rx) * weight;
+
+    mat4.identity(armMatrix);
+    mat4.translate(armMatrix, armMatrix, [px, py, pz]);
+    mat4.rotateX(armMatrix, armMatrix, rx);
+
+    rootMatrix[13] += Math.max(0, reach) * LUNGE_BODY * weight;
+  });
+
+  const sword_slice = clipLayer(world, SWORD_SWING, { root: unit.root, bones });
+
+  const animations = combineAnimations(unit.animations, { sword_slice, sword_lunge });
+
+  return { root: unit.root, bones, animations };
+}
+
+function prefix(p: string, m: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(m).map(([k, v]) => [p + k, v]));
+}

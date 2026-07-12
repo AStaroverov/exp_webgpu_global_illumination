@@ -1,0 +1,101 @@
+import { createTransformSystem } from "../../renderer/src/ECS/Systems/TransformSystem.ts";
+import { addTransformComponents } from "../../renderer/src/ECS/Components/Transform.ts";
+import {
+  createEngineWorld,
+  createEntityId,
+  getEngineComponents,
+  getEngineSab,
+} from "./ECS/createEngineWorld.ts";
+import { createApplyRigidBodyToTransformSystem } from "./ECS/Systems/createApplyRigidBodyToTransformSystem.ts";
+import { createApplyVelocitySystem } from "./ECS/Systems/createApplyVelocitySystem.ts";
+import { createShapeCastSystem } from "./ECS/Systems/createShapeCastSystem.ts";
+import { createApplyShapeCastResultsSystem } from "./ECS/Systems/createApplyShapeCastResultsSystem.ts";
+import { createColliderDebugSystem } from "./ECS/Systems/createColliderDebugSystem.ts";
+import { createPhysicsWorker } from "./Physics/createPhysicsWorker.ts";
+import { createRenderTarget } from "./createRenderTarget.ts";
+import { EngineDI, type EngineApi } from "./DI/EngineDI.ts";
+import { RenderDI } from "./DI/RenderDI.ts";
+
+export type CreateEngineOptions = {
+  canvas?: HTMLCanvasElement | null;
+  width?: number;
+  height?: number;
+};
+
+export async function createEngine({
+  canvas,
+  width = 0,
+  height = 0,
+}: CreateEngineOptions = {}): Promise<EngineApi> {
+  if (typeof globalThis.crossOriginIsolated === "boolean" && !globalThis.crossOriginIsolated) {
+    throw new Error(
+      "createEngine: crossOriginIsolated === false. The engine requires " +
+        "SharedArrayBuffer; set COOP/COEP headers (Cross-Origin-Opener-Policy: " +
+        "same-origin, Cross-Origin-Embedder-Policy: require-corp) on the server. " +
+        "There is no single-thread fallback.",
+    );
+  }
+
+  const world = createEngineWorld();
+  const physicsWorker = createPhysicsWorker(getEngineSab(world).bundle);
+
+  // The one scene-graph root: everything renderable is parented under it (see EngineDI.sceneRoot).
+  const sceneRoot = createEntityId(world);
+  addTransformComponents(world, sceneRoot);
+  getEngineComponents(world).Children.addComponent(world, sceneRoot);
+  EngineDI.sceneRoot = sceneRoot;
+
+  const execTransformSystem = createTransformSystem(
+    world,
+    getEngineComponents(world).Children,
+    sceneRoot,
+  );
+  const applyRigidBodyToLocalTransform = createApplyRigidBodyToTransformSystem(world);
+  const applyVelocity = createApplyVelocitySystem(world);
+  const requestShapeCasts = createShapeCastSystem(world);
+  const applyShapeCastResults = createApplyShapeCastResultsSystem(world);
+  const drawColliderDebug = createColliderDebugSystem(world, sceneRoot);
+
+  function tick(delta: number): void {
+    // Results first: gameplay (which ran before tick) sees last frame's hits;
+    // requests last: they need the GlobalTransform the transform system just wrote.
+    applyShapeCastResults();
+    applyVelocity();
+    applyRigidBodyToLocalTransform();
+    drawColliderDebug();
+    execTransformSystem();
+    requestShapeCasts();
+    RenderDI.renderFrame?.(delta);
+  }
+
+  async function setRenderTarget(target: HTMLCanvasElement | null | undefined): Promise<void> {
+    RenderDI.destroy?.();
+    if (target) {
+      await createRenderTarget(world, target);
+      EngineDI.width = target.width;
+      EngineDI.height = target.height;
+    }
+  }
+
+  function destroy(): void {
+    RenderDI.destroy?.();
+    physicsWorker.terminate();
+  }
+
+  EngineDI.width = width;
+  EngineDI.height = height;
+  EngineDI.world = world;
+  EngineDI.tick = tick;
+  EngineDI.destroy = destroy;
+  EngineDI.setRenderTarget = (target) => void setRenderTarget(target);
+
+  if (canvas) {
+    await createRenderTarget(world, canvas);
+    EngineDI.width = canvas.width;
+    EngineDI.height = canvas.height;
+  }
+
+  await physicsWorker.ready;
+
+  return EngineDI;
+}
